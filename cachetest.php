@@ -5,30 +5,53 @@
 
 class PureCached {
     private $fp;
+    private $data;
+    private $limit;
+    private $thresholds;
 
-    function PureCached() {
-        $this->fp = fopen("php://memory", "r+");
+    function PureCached($limit=0, $thresholds=1.0) {
+        $this->data = array();
+        $this->limit = $limit;
+        $this->thresholds = $thresholds;
     }
 
-    private function read() {
-        rewind($this->fp);
-        return stream_get_contents($this->fp);
+    private function shift() {
+        array_shift($this->data);
+    }
+
+    public function save($filename) {
+        $fp = fopen($filename, "w");
+        $flag = fwrite($fp, serialize($this->data));
+        fclose($fp);
+        return $flag;
+    }
+
+    public function restore($filename) {
+        $contents = "";
+        $fp = fopen($filename, "r");
+        while(!feof($fp)) {
+            $contents .= fread($fp, 8192);
+        }
+        $this->data = unserialize($contents);
     }
 
     public function put($key, $value) {
-        $data = unserialize($this->read($this->fp));
-        $data[$key] = $value;
-        rewind($this->fp);
-        fwrite($this->fp, serialize($data));
+        while(memory_get_usage() > ($this->limit * $this->thresholds)) {
+            $this->shift();
+            if(count($this->data) == 0) break;
+        }
+        $this->data[$key] = $value;
     }
 
     public function get($key) {
-        $data = unserialize($this->read($this->fp));
-        return (array_key_exists($key, $data) ? $data[$key] : false);
+        if(array_key_exists($key, $this->data)) {
+            return $this->data[$key];
+        }
+        return NULL;
     }
 }
 
-$cache = new PureCached();
+$cache = new PureCached(1024 * 1024 * 32, 0.8);
 $cache->put("fruit", "Apple");
 $cache->put("person", "John Doe");
 
