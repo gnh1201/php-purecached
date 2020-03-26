@@ -4,15 +4,16 @@
 // 2020-02-25
 
 class PureCached {
-    private $fp;
     private $data;
     private $limit;
     private $thresholds;
+    private $blocksize;
 
     function PureCached($limit=0, $thresholds=1.0) {
         $this->data = array();
         $this->limit = $limit;
         $this->thresholds = $thresholds;
+        $this->blocksize = 8192;
     }
 
     private function shift() {
@@ -30,9 +31,10 @@ class PureCached {
         $contents = "";
         $fp = fopen($filename, "r");
         while(!feof($fp)) {
-            $contents .= fread($fp, 8192);
+            $contents .= fread($fp, $this->blocksize);
         }
         $this->data = unserialize($contents);
+        fclose($fp);
     }
 
     public function put($key, $value) {
